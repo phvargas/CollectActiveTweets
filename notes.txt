@@ -1,0 +1,3 @@
+Run the command locally on our dataset with out credentials:
+
+$ docker container run -it --rm -v /data:/data --user=$(id -u):$(id -g) phvargas/collect-active-tweets ./main.py part=4-4 path=/data/harassment/verifiedUserDataset/tweetConvo.dat del_path=/data/harassment/DeletedSuspendedAccounts/ auth=females path_tweet=/data/harassment/AccountTweets
