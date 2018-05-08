@@ -42,7 +42,12 @@ def main(**kwarg):
     number_handles = len(interacting_handles)
     print('Number of Twitter accounts interacting in all conversations: {:,}'.format(number_handles))
 
-    tweet = TweetClass(path_tweets, params['auth'])
+    if 'auth' in params:
+        auth = params['auth']
+        tweet = TweetClass(auth)
+    else:
+        tweet = TweetClass()
+
     deleted_accounts = []
     suspended_accounts = []
     del_sus_accounts = []
