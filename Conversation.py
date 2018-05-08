@@ -7,14 +7,19 @@ class Conversation:
     def __init__(self, conversation_filename):
         self.conversations = {}
 
+        self.counter = 0
+
         if os.path.isfile(conversation_filename):
             self.load_conversations(conversation_filename)
         else:
             print("Could not find file: {}".format(conversation_filename), file=sys.stderr)
             exit(-1)
 
-        self.max_number_conversations = max([len(self.handle_conversations_id(x))
-                                             for x in self.conversations])
+        try:
+            self.max_number_conversations = max([len(self.handle_conversations_id(x))
+                                                 for x in self.conversations])
+        except ValueError:
+            self.max_number_conversations = []
 
     def load_conversations(self, filename):
         with open(filename, "r", encoding='iso-8859-1') as fs:
@@ -24,43 +29,36 @@ class Conversation:
                     conversation_block = {'interactions': []}
 
                     # gets the Twitter Conversation-ID from the thread
-                    if loaded_conversation:
-                        conversation_idx = next(iter(loaded_conversation.values()))['data-conversation-id']
+                    for _idx in loaded_conversation:
+                        conversation_idx = loaded_conversation[_idx]['data-conversation-id']
                         conversation_block['data-conversation-id'] = conversation_idx
+                        break
 
                     # separate root from response conversations
                     for _idx in loaded_conversation:
                         # print('{}: {}'.format(_idx, loaded_conversation[_idx]))
 
-                        is_original_tweet = False   # flag to find root conversation
-
-                        for key in loaded_conversation[_idx]:
-                            # print('\t{}: {}'.format(key, loaded_conversation[_idx][key]))
-
-                            # check if conversation-id is the root
-                            if key == 'data-conversation-id' and loaded_conversation[_idx][key] == _idx:
-                                is_original_tweet = True
-                                break
-
-                        if is_original_tweet:
-                            conversation_block['data-screen-name'] = loaded_conversation[_idx]['data-screen-name'].lower()
+                        # check if conversation-id is the root
+                        if loaded_conversation[_idx]['data-conversation-id'] == _idx:
+                            conversation_block['data-screen-name'] = loaded_conversation[_idx][
+                                'data-screen-name'].lower()
                             conversation_block['tweet-time'] = loaded_conversation[_idx]['tweet-time']
                             conversation_block['tweet-text'] = loaded_conversation[_idx]['tweet-text']
                         else:
                             conversation_block['interactions'].append({
                                 'data-tweet-id': loaded_conversation[_idx]['data-tweet-id'],
-                                'data-screen-name': loaded_conversation[_idx]['data-screen-name'],
+                                'data-screen-name': loaded_conversation[_idx]['data-screen-name'].lower(),
                                 'tweet-time': loaded_conversation[_idx]['tweet-time'],
                                 'tweet-text': loaded_conversation[_idx]['tweet-text']
                             })
 
-                    if conversation_block['data-screen-name'] in self.conversations:
+                    if 'data-screen-name' in conversation_block and conversation_block['data-screen-name'] in self.conversations:
                         self.conversations[conversation_block['data-screen-name']][conversation_idx] = {
                             'tweet-time': conversation_block['tweet-time'],
                             'tweet-text': conversation_block['tweet-text'],
                             'interactions': conversation_block['interactions']
                         }
-                    else:
+                    elif 'data-screen-name' in conversation_block:
                         self.conversations[conversation_block['data-screen-name']] = {
                             conversation_idx: {
                                 'tweet-time': conversation_block['tweet-time'],
@@ -68,6 +66,9 @@ class Conversation:
                                 'interactions': conversation_block['interactions']
                             }
                         }
+                    else:
+                        self.counter += 1
+
         return
 
     def handle_conversations_id(self, handle):
@@ -198,17 +199,13 @@ class Conversation:
 
         _conversation_list = []
 
-        for _handle in self.conversations:
-            for _conversation in self.conversations[_handle]:
-                if self.conversations[_handle][_conversation]['interactions']:
-                    for _account in self.conversations[_handle][_conversation]['interactions']:
-                        if _account['data-screen-name'].lower() == handle:
-                            _conversation_list.append({
-                                'handle': _handle,
-                                'data-conversation-id': _conversation,
-                                'tweet-time': _account['tweet-time'],
-                                'tweet-text': _account['tweet-text'],
-                            })
+        if handle in self.conversations:
+            for _idx in self.conversations[handle]:
+                _conversation_list.append({
+                    'data-conversation-id': _idx,
+                    'tweet-time': self.conversations[handle][_idx]['tweet-time'],
+                    'tweet-text': self.conversations[handle][_idx]['tweet-text'],
+                })
 
         return _conversation_list
 
@@ -290,3 +287,11 @@ class Conversation:
                     _replying_text.append(_record['tweet-text'])
 
         return _replying_text
+
+    def retrieve_root_handles(self):
+        """
+        From all the conversations captured return a set of handles that initiated a conversations
+        :return: a set of all VMP handles. Ex: {'barackobama', 'seanhannity'}
+        """
+
+        return set([_handle.lower() for _handle in self.conversations])
